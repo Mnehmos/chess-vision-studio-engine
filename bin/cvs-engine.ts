@@ -1,6 +1,8 @@
 #!/usr/bin/env node
+import { createInterface } from "node:readline";
 import { Chess } from "chess.js";
 import { CvsEngine } from "../src/engine.js";
+import { UciSession } from "../src/uci.js";
 import { extractPositionFeatures } from "../src/features/positionFeatures.js";
 import { benchmark } from "../src/benchmark/metrics.js";
 import { loadDataset } from "../src/benchmark/dataset.js";
@@ -125,6 +127,21 @@ function cmdBench(flags: Flags): void {
   console.log(JSON.stringify(report, null, 2));
 }
 
+/** UCI protocol mode: read commands from stdin, answer on stdout, until `quit`.
+ *  Launch as `cvs-engine uci` from a UCI GUI / cutechess-cli / lichess-bot. */
+function cmdUci(flags: Flags): void {
+  const session = new UciSession(new CvsEngine(), { defaultDepth: flags.depth ?? 4, maxMoveMs: flags.maxTimeMs });
+  const rl = createInterface({ input: process.stdin, terminal: false });
+  rl.on("line", (line) => {
+    const { out, quit } = session.handle(line);
+    for (const o of out) process.stdout.write(o + "\n");
+    if (quit) {
+      rl.close();
+      process.exit(0);
+    }
+  });
+}
+
 function usage(): void {
   console.log(`cvs-engine — Chess Vision Studio Engine CLI
 
@@ -135,6 +152,7 @@ Usage:
   cvs-engine features "<fen>"
   cvs-engine selfplay ["<fen>"] [--moves N] [--depth N]
   cvs-engine bench    <dataset.jsonl> [--depth N]
+  cvs-engine uci      [--depth N] [--time MS]   (UCI protocol on stdin/stdout)
 
 FEN defaults to the starting position when omitted.`);
 }
@@ -160,6 +178,9 @@ function main(): void {
       break;
     case "bench":
       cmdBench(flags);
+      break;
+    case "uci":
+      cmdUci(flags);
       break;
     default:
       usage();
