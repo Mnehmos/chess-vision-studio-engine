@@ -1,0 +1,42 @@
+{
+  "name": "@cvs/engine",
+  "version": "0.1.0",
+  "description": "Chess Vision Studio Engine — a feature-driven policy/value/search chess engine (CVS-Policy-0).",
+  "type": "module",
+  "license": "MIT",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    }
+  },
+  "bin": {
+    "cvs-engine": "dist/bin/cvs-engine.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "engine": "tsx bin/cvs-engine.ts",
+    "bench": "tsx bin/cvs-engine.ts bench"
+  },
+  "dependencies": {
+    "chess.js": "^1.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
