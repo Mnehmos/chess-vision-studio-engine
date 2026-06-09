@@ -78,7 +78,7 @@ export type { MixedTrainOptions, MixedTrainResult, MixedHistoryEntry } from "./v
 
 // Search head
 export { Searcher, search } from "./search/searchEngine.js";
-export type { SearchOptions, SearchResult, ValueFn } from "./search/searchEngine.js";
+export type { SearchOptions, SearchResult, SearchTelemetry, ValueFn } from "./search/searchEngine.js";
 
 // Features
 export { see } from "./features/see.js";

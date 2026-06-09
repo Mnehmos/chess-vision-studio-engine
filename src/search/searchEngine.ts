@@ -2,7 +2,7 @@ import { Chess } from "chess.js";
 import type { Move } from "chess.js";
 import { MATE_SCORE, MATE_THRESHOLD, PIECE_VALUE } from "../constants.js";
 import { evaluate } from "../value/valueEngine.js";
-import { see } from "../features/see.js";
+import { seeOnBoard } from "../features/see.js";
 
 /**
  * A leaf evaluation function (side-to-move POV, negamax convention). Injected so
@@ -13,6 +13,14 @@ export type ValueFn = (chess: Chess) => number;
 
 const INF = MATE_SCORE * 2;
 const MAX_QUIESCENCE_PLY = 64;
+// Capped quiet-move quiescence extensions. Quiescence is otherwise capture-only,
+// which misses QUIET refutations (a quiet check / mate threat). We extend a small,
+// strictly-bounded set of forcing quiet moves near the top of quiescence so the
+// search sees them, without exploding: only within the first QUIET_CHECK_MAX_PLY
+// quiescence plies, at most MAX_QUIET_CHECKS_PER_NODE per node, and only checks
+// that don't simply hang the checking piece (SEE >= 0).
+const QUIET_CHECK_MAX_PLY = 2;
+const MAX_QUIET_CHECKS_PER_NODE = 3;
 
 export interface SearchOptions {
   /** Maximum search depth in plies (iterative deepening target). Default 4. */
@@ -30,6 +38,25 @@ export interface SearchResult {
   pv: string[];
   depth: number;
   nodes: number;
+  /** Quiescence / forcing-extension telemetry for the whole search. */
+  telemetry?: SearchTelemetry;
+}
+
+export interface SearchTelemetry {
+  /** Quiescence nodes visited. */
+  qNodes: number;
+  /** Quiescence nodes that added ≥1 forcing quiet extension. */
+  quietExtensionNodes: number;
+  /** Quiet check moves added to quiescence. */
+  checkExtensions: number;
+  /** Mate-threat extensions (scaffolded; 0 until that forcing type is implemented). */
+  mateThreatExtensions: number;
+  /** Hanging-major-piece-threat extensions (scaffolded; 0 until implemented). */
+  hangingMajorPieceExtensions: number;
+  /** Deepest quiescence ply reached. */
+  maxQDepth: number;
+  /** Wall-clock for the whole search, ms. */
+  elapsedMs: number;
 }
 
 type TTFlag = "exact" | "lower" | "upper";
@@ -59,6 +86,11 @@ export class Searcher {
   private nodes = 0;
   private deadline = Number.POSITIVE_INFINITY;
   private aborted = false;
+  // Quiescence telemetry (reset per search()).
+  private qNodes = 0;
+  private quietExtensionNodes = 0;
+  private checkExtensions = 0;
+  private maxQDepth = 0;
 
   /**
    * @param evalFn leaf evaluator (side-to-move POV). Defaults to the handcrafted
@@ -71,6 +103,11 @@ export class Searcher {
     this.tt.clear();
     this.nodes = 0;
     this.aborted = false;
+    this.qNodes = 0;
+    this.quietExtensionNodes = 0;
+    this.checkExtensions = 0;
+    this.maxQDepth = 0;
+    const startedAt = Date.now();
     this.deadline =
       options.maxTimeMs !== undefined ? Date.now() + options.maxTimeMs : Number.POSITIVE_INFINITY;
 
@@ -102,6 +139,15 @@ export class Searcher {
       if (Math.abs(score) > MATE_THRESHOLD) break;
     }
 
+    result.telemetry = {
+      qNodes: this.qNodes,
+      quietExtensionNodes: this.quietExtensionNodes,
+      checkExtensions: this.checkExtensions,
+      mateThreatExtensions: 0, // scaffolded — not yet implemented
+      hangingMajorPieceExtensions: 0, // scaffolded — not yet implemented
+      maxQDepth: this.maxQDepth,
+      elapsedMs: Date.now() - startedAt,
+    };
     return result;
   }
 
@@ -165,12 +211,14 @@ export class Searcher {
     return best;
   }
 
-  private quiesce(chess: Chess, alphaIn: number, beta: number, ply: number): number {
+  private quiesce(chess: Chess, alphaIn: number, beta: number, ply: number, qDepth = 0): number {
     if (this.timeUp()) {
       this.aborted = true;
       return this.evalFn(chess);
     }
     this.nodes++;
+    this.qNodes++;
+    if (qDepth > this.maxQDepth) this.maxQDepth = qDepth;
 
     const inCheck = chess.inCheck();
     let alpha = alphaIn;
@@ -182,7 +230,6 @@ export class Searcher {
       if (ply >= MAX_QUIESCENCE_PLY) return stand;
     }
 
-    const fen = chess.fen();
     const all = chess.moves({ verbose: true });
     if (all.length === 0) {
       // No legal moves: checkmate (in check) or stalemate.
@@ -193,7 +240,12 @@ export class Searcher {
     if (inCheck) {
       moves = all; // search all evasions
     } else {
-      // Only winning/equal captures and promotions.
+      // SEE filtering runs on ONE scratch board parsed once for this node:
+      // seeOnBoard mutates + restores placement per call, so we avoid re-parsing
+      // the FEN per candidate (the dominant quiescence cost). Castling/ep drift on
+      // the throwaway scratch is irrelevant — SEE depends only on placement.
+      const scratch = new Chess(chess.fen());
+      // Winning/equal captures and promotions...
       moves = all
         .filter(
           (m) =>
@@ -201,14 +253,34 @@ export class Searcher {
             m.flags.includes("e") ||
             m.flags.includes("p"),
         )
-        .filter((m) => see(fen, m.from, m.to) >= 0);
+        .filter((m) => seeOnBoard(scratch, m.from, m.to) >= 0);
+      // ...plus a capped set of forcing QUIET moves (checks/mates) near the top of
+      // quiescence, so quiet refutations are seen — not only captures.
+      if (qDepth < QUIET_CHECK_MAX_PLY) {
+        const quietChecks = all
+          .filter(
+            (m) =>
+              !m.flags.includes("c") &&
+              !m.flags.includes("e") &&
+              !m.flags.includes("p") &&
+              (m.san.includes("+") || m.san.includes("#")),
+          )
+          .filter((m) => seeOnBoard(scratch, m.from, m.to) >= 0)
+          .sort((a, b) => captureOrder(b) - captureOrder(a))
+          .slice(0, MAX_QUIET_CHECKS_PER_NODE);
+        if (quietChecks.length > 0) {
+          this.quietExtensionNodes++;
+          this.checkExtensions += quietChecks.length;
+        }
+        moves = [...moves, ...quietChecks];
+      }
     }
     moves.sort((a, b) => captureOrder(b) - captureOrder(a));
 
     let best = inCheck ? -INF : alpha;
     for (const move of moves) {
       chess.move({ from: move.from, to: move.to, promotion: move.promotion });
-      const score = -this.quiesce(chess, -beta, -alpha, ply + 1);
+      const score = -this.quiesce(chess, -beta, -alpha, ply + 1, qDepth + 1);
       chess.undo();
       if (this.aborted) return best;
       if (score > best) best = score;
