@@ -4,6 +4,7 @@ import { MATE_SCORE, MAX_PHASE, PHASE_VALUE, PIECE_VALUE } from "../constants.js
 import type { GamePhase } from "../types.js";
 import { pstValueEg, pstValueMg } from "./pst.js";
 import { DEFAULT_VALUE_WEIGHTS, type ValueWeights } from "./weights.js";
+import { rung2Contribution, type Rung2Weights } from "./rung2.js";
 
 /** Non-pawn material on the board (0..24), used to taper mg/eg and label phase. */
 export function phaseUnits(chess: Chess): number {
@@ -31,8 +32,12 @@ export function phaseLabel(chess: Chess): GamePhase {
  * mate/stalemate score. This is intentionally a transparent handcrafted value
  * function — the seed that a learned value model (Phase 4) would later replace.
  */
-export function evaluateWhite(chess: Chess, weights: ValueWeights = DEFAULT_VALUE_WEIGHTS): number {
-  return Math.round(evaluateWhiteFloat(chess, weights));
+export function evaluateWhite(
+  chess: Chess,
+  weights: ValueWeights = DEFAULT_VALUE_WEIGHTS,
+  rung2?: Rung2Weights,
+): number {
+  return Math.round(evaluateWhiteFloat(chess, weights, rung2));
 }
 
 /**
@@ -43,6 +48,7 @@ export function evaluateWhite(chess: Chess, weights: ValueWeights = DEFAULT_VALU
 export function evaluateWhiteFloat(
   chess: Chess,
   weights: ValueWeights = DEFAULT_VALUE_WEIGHTS,
+  rung2?: Rung2Weights,
 ): number {
   if (chess.isCheckmate()) {
     // Side to move is mated => bad for them.
@@ -84,12 +90,20 @@ export function evaluateWhiteFloat(
   // Tempo: a small bonus for having the move.
   score += chess.turn() === "w" ? weights.tempo : -weights.tempo;
 
+  // Rung-2 positional terms (inert by default: returns 0 when no rung2 weights
+  // are passed, so the eval is byte-identical until a term is explicitly enabled).
+  if (rung2) score += rung2Contribution(chess, rung2);
+
   return score;
 }
 
 /** Static evaluation from the **side-to-move's** perspective (negamax convention). */
-export function evaluate(chess: Chess, weights: ValueWeights = DEFAULT_VALUE_WEIGHTS): number {
-  const white = evaluateWhite(chess, weights);
+export function evaluate(
+  chess: Chess,
+  weights: ValueWeights = DEFAULT_VALUE_WEIGHTS,
+  rung2?: Rung2Weights,
+): number {
+  const white = evaluateWhite(chess, weights, rung2);
   return chess.turn() === "w" ? white : -white;
 }
 

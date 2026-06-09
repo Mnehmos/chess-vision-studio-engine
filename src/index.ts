@@ -62,6 +62,17 @@ export type {
   RankingTrainResult,
   RankingHistoryEntry,
 } from "./value/trainRanking.js";
+// Rung-2 value features (inert: default weights are 0 → byte-identical eval).
+export {
+  RUNG2_KEYS,
+  DEFAULT_RUNG2_WEIGHTS,
+  extractRung2Features,
+  rung2Contribution,
+  flattenRung2,
+  flattenRung2Features,
+  unflattenRung2Weights,
+} from "./value/rung2.js";
+export type { Rung2Key, Rung2Features, Rung2Weights } from "./value/rung2.js";
 
 // Search head
 export { Searcher, search } from "./search/searchEngine.js";

@@ -4,6 +4,7 @@ import { evaluate, evaluateWhite, evaluateWhiteFloat, phaseLabel } from "../src/
 import { DEFAULT_VALUE_WEIGHTS } from "../src/value/weights.js";
 import { trainValue } from "../src/value/train.js";
 import { preferenceScore, trainValueRanking } from "../src/value/trainRanking.js";
+import { extractRung2Features, DEFAULT_RUNG2_WEIGHTS, RUNG2_KEYS } from "../src/value/rung2.js";
 import { CvsEngine } from "../src/engine.js";
 import type { TrainingPosition } from "../src/types.js";
 import { buildTrainingPosition } from "../src/benchmark/dataset.js";
@@ -131,5 +132,40 @@ describe("sibling-ranking value head (Phase B)", () => {
     }
     expect(res.history.at(-1)!.rankAccuracy).toBeGreaterThanOrEqual(0);
     expect(res.history.at(-1)!.rankAccuracy).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("Rung-2 value features (inert capacity)", () => {
+  it("eval is byte-identical with default (all-zero) or omitted Rung-2 weights", () => {
+    // THE invariant: Rung-2 is dormant until a weight is explicitly set.
+    for (const fen of FEN_BATTERY) {
+      const c = new Chess(fen);
+      expect(evaluateWhite(c, DEFAULT_VALUE_WEIGHTS, DEFAULT_RUNG2_WEIGHTS)).toBe(evaluateWhite(c, DEFAULT_VALUE_WEIGHTS));
+      expect(evaluateWhiteFloat(c, DEFAULT_VALUE_WEIGHTS, DEFAULT_RUNG2_WEIGHTS)).toBe(
+        evaluateWhiteFloat(c, DEFAULT_VALUE_WEIGHTS),
+      );
+    }
+  });
+
+  it("the start position is feature-symmetric (every Rung-2 feature ≈ 0)", () => {
+    const feats = extractRung2Features(new Chess(START_FEN));
+    for (const k of RUNG2_KEYS) expect(Math.abs(feats[k])).toBeLessThan(1e-9);
+  });
+
+  it("extracts a positive White-POV signal for a rook on an open file", () => {
+    // White rook a1 on an empty board: every file open, no black rook.
+    const fen = "4k3/8/8/8/8/8/8/R3K3 w - - 0 1";
+    const feats = extractRung2Features(new Chess(fen));
+    expect(feats.rookOpenFile).toBeGreaterThan(0);
+    expect(feats.mobilityRook).toBeGreaterThan(0);
+  });
+
+  it("a non-zero Rung-2 weight changes the eval (capacity is reachable)", () => {
+    const fen = "4k3/8/8/8/8/8/8/R3K3 w - - 0 1";
+    const c = new Chess(fen);
+    const base = evaluateWhite(c, DEFAULT_VALUE_WEIGHTS);
+    const withTerm = evaluateWhite(c, DEFAULT_VALUE_WEIGHTS, { ...DEFAULT_RUNG2_WEIGHTS, rookOpenFile: 50 });
+    expect(withTerm).not.toBe(base);
+    expect(withTerm).toBeGreaterThan(base); // open-file bonus helps White
   });
 });
