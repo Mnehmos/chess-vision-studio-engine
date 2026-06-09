@@ -4,6 +4,7 @@ import { DEFAULT_POLICY_WEIGHTS, type PolicyWeights } from "./policy/weights.js"
 import { Searcher, type SearchOptions } from "./search/searchEngine.js";
 import { evaluate, evaluateWhite } from "./value/valueEngine.js";
 import { DEFAULT_VALUE_WEIGHTS, type ValueWeights } from "./value/weights.js";
+import { DEFAULT_RUNG2_WEIGHTS, type Rung2Weights } from "./value/rung2.js";
 import type { AnalysisResult, CandidateMove, EngineMove } from "./types.js";
 
 export interface CvsEngineOptions {
@@ -16,6 +17,12 @@ export interface CvsEngineOptions {
    * the handcrafted defaults (and the default Searcher, byte-identical play).
    */
   valueWeights?: ValueWeights;
+  /**
+   * Rung-2 positional feature weights. Omit (or pass all-zero) to keep the eval
+   * byte-identical to the handcrafted baseline. When supplied, they drive the
+   * search leaves and static eval alongside valueWeights.
+   */
+  rung2Weights?: Rung2Weights;
 }
 
 export interface AnalyzeOptions extends SearchOptions {
@@ -36,17 +43,20 @@ export class CvsEngine {
   private readonly weights: PolicyWeights;
   private readonly temperature: number;
   private readonly valueWeights: ValueWeights;
+  private readonly rung2Weights: Rung2Weights;
   private readonly searcher: Searcher;
 
   constructor(options: CvsEngineOptions = {}) {
     this.weights = options.weights ?? DEFAULT_POLICY_WEIGHTS;
     this.temperature = options.temperature ?? 1;
     this.valueWeights = options.valueWeights ?? DEFAULT_VALUE_WEIGHTS;
-    // Only inject a custom leaf evaluator when non-default weights are supplied,
-    // so the default engine keeps byte-identical search behavior.
-    this.searcher = options.valueWeights
-      ? new Searcher((c) => evaluate(c, this.valueWeights))
-      : new Searcher();
+    this.rung2Weights = options.rung2Weights ?? DEFAULT_RUNG2_WEIGHTS;
+    // Only inject a custom leaf evaluator when non-default value OR rung-2 weights
+    // are supplied, so the default engine keeps byte-identical search behavior.
+    this.searcher =
+      options.valueWeights || options.rung2Weights
+        ? new Searcher((c) => evaluate(c, this.valueWeights, this.rung2Weights))
+        : new Searcher();
   }
 
   /** Policy-only move prediction: the top-`k` candidate moves for a position. */
@@ -61,7 +71,7 @@ export class CvsEngine {
 
   /** Static value-engine evaluation of `fen`, centipawns from White's perspective. */
   evaluate(fen: string): number {
-    return evaluateWhite(new Chess(fen), this.valueWeights);
+    return evaluateWhite(new Chess(fen), this.valueWeights, this.rung2Weights);
   }
 
   /** Search-backed best move, or null when the position is terminal. */

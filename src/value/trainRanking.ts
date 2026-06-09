@@ -33,6 +33,13 @@ export interface RankingTrainOptions {
   l2?: number;
   /** Required value gap (cp) per cp of cpLoss. Default 1.0. */
   marginScale?: number;
+  /**
+   * Cap on the per-pair margin (cp). Large material-blunder margins (≈ the piece
+   * value) are already satisfied by the default eval, so leaving them uncapped
+   * makes the hinge inflate material weights. Capping at ~1 pawn lets only the
+   * positional siblings drive learning. Default Infinity (uncapped).
+   */
+  marginCapCp?: number;
   /** Max candidate moves per parent to use (best-first). Default 8. */
   topK?: number;
 }
@@ -155,6 +162,7 @@ export function trainValueRanking(positions: TrainingPosition[], options: Rankin
   const lr = options.learningRate ?? 0.01;
   const l2 = options.l2 ?? 1e-3;
   const marginScale = options.marginScale ?? 1.0;
+  const marginCap = options.marginCapCp ?? Infinity;
   const topK = options.topK ?? 8;
 
   const examples = buildRankingExamples(positions, topK);
@@ -187,7 +195,7 @@ export function trainValueRanking(positions: TrainingPosition[], options: Rankin
       for (let j = 0; j < ex.candidates.length; j++) {
         if (j === ex.best) continue;
         const c = ex.candidates[j]!;
-        const margin = marginScale * c.cpLoss;
+        const margin = Math.min(marginScale * c.cpLoss, marginCap);
         if (margin <= 0) continue; // same-quality sibling: no ordering constraint
         pairs++;
         const slack = margin - (bestPref - prefs[j]!);

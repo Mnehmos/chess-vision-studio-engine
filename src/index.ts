@@ -73,6 +73,8 @@ export {
   unflattenRung2Weights,
 } from "./value/rung2.js";
 export type { Rung2Key, Rung2Features, Rung2Weights } from "./value/rung2.js";
+export { trainValueMixed, combinedPartials } from "./value/trainMixed.js";
+export type { MixedTrainOptions, MixedTrainResult, MixedHistoryEntry } from "./value/trainMixed.js";
 
 // Search head
 export { Searcher, search } from "./search/searchEngine.js";

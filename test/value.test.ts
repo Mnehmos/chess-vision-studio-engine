@@ -4,7 +4,10 @@ import { evaluate, evaluateWhite, evaluateWhiteFloat, phaseLabel } from "../src/
 import { DEFAULT_VALUE_WEIGHTS } from "../src/value/weights.js";
 import { trainValue } from "../src/value/train.js";
 import { preferenceScore, trainValueRanking } from "../src/value/trainRanking.js";
-import { extractRung2Features, DEFAULT_RUNG2_WEIGHTS, RUNG2_KEYS } from "../src/value/rung2.js";
+import { extractRung2Features, DEFAULT_RUNG2_WEIGHTS, RUNG2_KEYS, flattenRung2 } from "../src/value/rung2.js";
+import { combinedPartials, trainValueMixed } from "../src/value/trainMixed.js";
+import { flattenValueWeights } from "../src/value/weights.js";
+import { dot } from "../src/value/partials.js";
 import { CvsEngine } from "../src/engine.js";
 import type { TrainingPosition } from "../src/types.js";
 import { buildTrainingPosition } from "../src/benchmark/dataset.js";
@@ -167,5 +170,71 @@ describe("Rung-2 value features (inert capacity)", () => {
     const withTerm = evaluateWhite(c, DEFAULT_VALUE_WEIGHTS, { ...DEFAULT_RUNG2_WEIGHTS, rookOpenFile: 50 });
     expect(withTerm).not.toBe(base);
     expect(withTerm).toBeGreaterThan(base); // open-file bonus helps White
+  });
+
+  it("CvsEngine threads a non-zero Rung-2 weight into the eval (and the searcher closure)", () => {
+    // Asymmetric position: White rook on the open a-file, no Black rook → mobilityRook != 0.
+    const fen = "4k3/8/8/8/8/8/8/R3K3 w - - 0 1";
+    const def = new CvsEngine().evaluate(fen);
+    const eng = new CvsEngine({ rung2Weights: { ...DEFAULT_RUNG2_WEIGHTS, mobilityRook: 5 } });
+    // Both static eval and the searcher use the same evaluate(c, value, rung2) closure.
+    expect(eng.evaluate(fen)).not.toBe(def);
+  });
+});
+
+describe("mixed base+Rung-2 trainer", () => {
+  it("combinedPartials · flat reproduces evaluateWhiteFloat for arbitrary base+Rung-2 weights", () => {
+    // This linear identity is what makes the mixed trainer's gradients exact.
+    const base = { material: { p: 1.1, n: 0.9, b: 1.2, r: 0.95, q: 1.05 }, pstScale: 0.8, bishopPair: 25, tempo: 12 };
+    const rung2 = { ...DEFAULT_RUNG2_WEIGHTS, mobilityKnight: 3, rookOpenFile: 20, passedPawnEg: 8, hangingPiece: 50 };
+    const flat = [...flattenValueWeights(base), ...flattenRung2(rung2)];
+    for (const fen of FEN_BATTERY) {
+      const c = new Chess(fen);
+      expect(dot(flat, combinedPartials(c))).toBeCloseTo(evaluateWhiteFloat(c, base, rung2), 5);
+    }
+  });
+
+  it("trainValueMixed (pure regression) lowers loss toward a learnable target; returns 26 finite weights", () => {
+    const positions: TrainingPosition[] = [];
+    for (const fen of FEN_BATTERY) {
+      const c = new Chess(fen);
+      const moves = c.moves().slice(0, 5);
+      if (moves.length < 2) continue;
+      // Offset target so there is something to fit (default eval already matches exactly).
+      const evalBefore = evaluateWhite(c) + 50;
+      const topMoves = moves.map((san, i) => {
+        const ch = new Chess(fen);
+        const mv = ch.move(san);
+        return { san, uci: mv?.lan ?? "", cp: 40 - i * 50, mate: undefined, depth: 10 };
+      });
+      positions.push(buildTrainingPosition(fen, moves[0]!, { bestMove: moves[0]!, evalBefore, topMoves, source: "master_game" }));
+    }
+    // Pure regression (β=0) is convex → GD reduces loss monotonically.
+    const res = trainValueMixed(positions, { epochs: 100, regressionWeight: 1, rankingWeight: 0 });
+    expect(res.regExamples).toBeGreaterThan(0);
+    expect(res.rankPairs).toBeGreaterThan(0);
+    expect(res.history.at(-1)!.regLoss).toBeLessThanOrEqual(res.history[0]!.regLoss + 1e-9);
+    for (const t of ["p", "n", "b", "r", "q"] as const) expect(Number.isFinite(res.base.material[t])).toBe(true);
+    for (const k of RUNG2_KEYS) expect(Number.isFinite(res.rung2[k])).toBe(true);
+  });
+
+  it("trainValueMixed (mixed) runs and returns finite weights", () => {
+    const positions: TrainingPosition[] = [];
+    for (const fen of FEN_BATTERY) {
+      const c = new Chess(fen);
+      const moves = c.moves().slice(0, 5);
+      if (moves.length < 2) continue;
+      const topMoves = moves.map((san, i) => {
+        const ch = new Chess(fen);
+        const mv = ch.move(san);
+        return { san, uci: mv?.lan ?? "", cp: 40 - i * 50, mate: undefined, depth: 10 };
+      });
+      positions.push(buildTrainingPosition(fen, moves[0]!, { bestMove: moves[0]!, evalBefore: evaluateWhite(c), topMoves, source: "master_game" }));
+    }
+    const res = trainValueMixed(positions, { epochs: 50, regressionWeight: 1, rankingWeight: 1 });
+    expect(res.history.length).toBe(50);
+    expect(Number.isFinite(res.history.at(-1)!.regLoss)).toBe(true);
+    expect(Number.isFinite(res.history.at(-1)!.rankLoss)).toBe(true);
+    for (const k of RUNG2_KEYS) expect(Number.isFinite(res.rung2[k])).toBe(true);
   });
 });
