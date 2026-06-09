@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { Chess } from "chess.js";
-import { evaluate, evaluateWhite, phaseLabel } from "../src/value/valueEngine.js";
+import { evaluate, evaluateWhite, evaluateWhiteFloat, phaseLabel } from "../src/value/valueEngine.js";
 import { DEFAULT_VALUE_WEIGHTS } from "../src/value/weights.js";
 import { trainValue } from "../src/value/train.js";
+import { preferenceScore, trainValueRanking } from "../src/value/trainRanking.js";
 import { CvsEngine } from "../src/engine.js";
 import type { TrainingPosition } from "../src/types.js";
 import { buildTrainingPosition } from "../src/benchmark/dataset.js";
@@ -86,5 +87,49 @@ describe("trainable value head", () => {
     for (const t of ["p", "n", "b", "r", "q"] as const) {
       expect(Math.abs(res.weights.material[t] - 1)).toBeLessThan(0.5);
     }
+  });
+});
+
+describe("sibling-ranking value head (Phase B)", () => {
+  it("preferenceScore equals the negamax leaf −value(child) for both POVs (the sign landmine)", () => {
+    // parent preference for a move MUST equal −evaluate(child); a flipped sign
+    // would teach the engine to prefer the most dangerous child while looking
+    // numerically stable. Test in float (exact), across white- and black-to-move.
+    for (const fen of FEN_BATTERY) {
+      const parent = new Chess(fen);
+      for (const san of parent.moves().slice(0, 6)) {
+        const child = new Chess(fen);
+        child.move(san);
+        const childStm = child.turn() === "w" ? 1 : -1;
+        const evalFloatStm = childStm * evaluateWhiteFloat(child, DEFAULT_VALUE_WEIGHTS);
+        expect(preferenceScore(parent.turn(), child, DEFAULT_VALUE_WEIGHTS)).toBe(-evalFloatStm);
+      }
+    }
+  });
+
+  it("trainValueRanking runs, lowers hinge loss, returns finite weights", () => {
+    const positions: TrainingPosition[] = [];
+    for (const fen of FEN_BATTERY) {
+      const c = new Chess(fen);
+      const moves = c.moves().slice(0, 5);
+      if (moves.length < 2) continue;
+      // Synthetic best-first cp ladder: first move best (cpLoss 0), rest worse.
+      const topMoves = moves.map((san, i) => {
+        const ch = new Chess(fen);
+        const mv = ch.move(san);
+        return { san, uci: mv?.lan ?? "", cp: 50 - i * 60, mate: undefined, depth: 10 };
+      });
+      positions.push(buildTrainingPosition(fen, moves[0]!, { bestMove: moves[0]!, topMoves, source: "master_game" }));
+    }
+    const res = trainValueRanking(positions, { epochs: 60, learningRate: 0.01 });
+    expect(res.examples).toBeGreaterThan(0);
+    expect(res.pairs).toBeGreaterThan(0);
+    expect(res.history.length).toBe(60);
+    expect(res.history.at(-1)!.loss).toBeLessThanOrEqual(res.history[0]!.loss + 1e-9);
+    for (const t of ["p", "n", "b", "r", "q"] as const) {
+      expect(Number.isFinite(res.weights.material[t])).toBe(true);
+    }
+    expect(res.history.at(-1)!.rankAccuracy).toBeGreaterThanOrEqual(0);
+    expect(res.history.at(-1)!.rankAccuracy).toBeLessThanOrEqual(1);
   });
 });

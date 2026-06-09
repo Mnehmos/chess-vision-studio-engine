@@ -10,10 +10,8 @@
 // nudges it where the SF labels disagree. Loss is Huber (smooth-L1) in PAWNS,
 // robust to SF outliers and mate saturation.
 import { Chess } from "chess.js";
-import { MAX_PHASE, PIECE_VALUE } from "../constants.js";
 import type { TrainingPosition } from "../types.js";
-import { pstValueEg, pstValueMg } from "./pst.js";
-import { phaseUnits } from "./valueEngine.js";
+import { positionPartials } from "./partials.js";
 import {
   DEFAULT_VALUE_WEIGHTS,
   flattenValueWeights,
@@ -48,8 +46,6 @@ export interface ValueTrainResult {
 
 /** Saturated White-POV cp used for mate labels (well below MATE_SCORE). */
 const MATE_SAT_CP = 3000;
-
-const PIECE_TYPES = ["p", "n", "b", "r", "q"] as const;
 
 /**
  * Precomputed per-position partials. Because the eval is linear in the weights,
@@ -92,31 +88,7 @@ export function buildValueExamples(positions: TrainingPosition[]): Example[] {
     } catch {
       continue;
     }
-    const units = phaseUnits(chess);
-    const mgWeight = units / MAX_PHASE;
-    const egWeight = 1 - mgWeight;
-
-    const count: Record<string, number> = { p: 0, n: 0, b: 0, r: 0, q: 0 };
-    let posSum = 0;
-    let whiteBishops = 0;
-    let blackBishops = 0;
-    for (const row of chess.board()) {
-      for (const piece of row) {
-        if (!piece) continue;
-        const sign = piece.color === "w" ? 1 : -1;
-        if (piece.type !== "k") count[piece.type] = (count[piece.type] ?? 0) + sign;
-        const mg = pstValueMg(piece.type, piece.color, piece.square);
-        const eg = pstValueEg(piece.type, piece.color, piece.square);
-        posSum += sign * (mg * mgWeight + eg * egWeight);
-        if (piece.type === "b") {
-          if (piece.color === "w") whiteBishops++;
-          else blackBishops++;
-        }
-      }
-    }
-    const matCoef = PIECE_TYPES.map((t) => PIECE_VALUE[t] * (count[t] ?? 0));
-    const pairInd = (whiteBishops >= 2 ? 1 : 0) - (blackBishops >= 2 ? 1 : 0);
-    const tempoSign = chess.turn() === "w" ? 1 : -1;
+    const { matCoef, posSum, pairInd, tempoSign } = positionPartials(chess);
     examples.push({ matCoef, posSum, pairInd, tempoSign, targetCp });
   }
   return examples;

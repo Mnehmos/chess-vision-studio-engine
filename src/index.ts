@@ -56,6 +56,12 @@ export type {
   ValueTrainResult,
   ValueTrainHistoryEntry,
 } from "./value/train.js";
+export { trainValueRanking, buildRankingExamples, preferenceScore } from "./value/trainRanking.js";
+export type {
+  RankingTrainOptions,
+  RankingTrainResult,
+  RankingHistoryEntry,
+} from "./value/trainRanking.js";
 
 // Search head
 export { Searcher, search } from "./search/searchEngine.js";
