@@ -2,7 +2,8 @@ import { Chess } from "chess.js";
 import { rankMoves, topCandidates } from "./policy/policyEngine.js";
 import { DEFAULT_POLICY_WEIGHTS, type PolicyWeights } from "./policy/weights.js";
 import { Searcher, type SearchOptions } from "./search/searchEngine.js";
-import { evaluateWhite } from "./value/valueEngine.js";
+import { evaluate, evaluateWhite } from "./value/valueEngine.js";
+import { DEFAULT_VALUE_WEIGHTS, type ValueWeights } from "./value/weights.js";
 import type { AnalysisResult, CandidateMove, EngineMove } from "./types.js";
 
 export interface CvsEngineOptions {
@@ -10,6 +11,11 @@ export interface CvsEngineOptions {
   weights?: PolicyWeights;
   /** Softmax temperature for the policy head. */
   temperature?: number;
+  /**
+   * Value-head weights driving the search leaves and static eval. Omit to use
+   * the handcrafted defaults (and the default Searcher, byte-identical play).
+   */
+  valueWeights?: ValueWeights;
 }
 
 export interface AnalyzeOptions extends SearchOptions {
@@ -29,11 +35,18 @@ export interface AnalyzeOptions extends SearchOptions {
 export class CvsEngine {
   private readonly weights: PolicyWeights;
   private readonly temperature: number;
-  private readonly searcher = new Searcher();
+  private readonly valueWeights: ValueWeights;
+  private readonly searcher: Searcher;
 
   constructor(options: CvsEngineOptions = {}) {
     this.weights = options.weights ?? DEFAULT_POLICY_WEIGHTS;
     this.temperature = options.temperature ?? 1;
+    this.valueWeights = options.valueWeights ?? DEFAULT_VALUE_WEIGHTS;
+    // Only inject a custom leaf evaluator when non-default weights are supplied,
+    // so the default engine keeps byte-identical search behavior.
+    this.searcher = options.valueWeights
+      ? new Searcher((c) => evaluate(c, this.valueWeights))
+      : new Searcher();
   }
 
   /** Policy-only move prediction: the top-`k` candidate moves for a position. */
@@ -48,7 +61,7 @@ export class CvsEngine {
 
   /** Static value-engine evaluation of `fen`, centipawns from White's perspective. */
   evaluate(fen: string): number {
-    return evaluateWhite(new Chess(fen));
+    return evaluateWhite(new Chess(fen), this.valueWeights);
   }
 
   /** Search-backed best move, or null when the position is terminal. */

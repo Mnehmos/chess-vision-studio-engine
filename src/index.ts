@@ -38,14 +38,28 @@ export type {
 export {
   evaluate,
   evaluateWhite,
+  evaluateWhiteFloat,
   phaseLabel,
   phaseUnits,
   sideSign,
 } from "./value/valueEngine.js";
+export {
+  DEFAULT_VALUE_WEIGHTS,
+  VALUE_WEIGHT_KEYS,
+  flattenValueWeights,
+  unflattenValueWeights,
+} from "./value/weights.js";
+export type { ValueWeights, MaterialPiece } from "./value/weights.js";
+export { trainValue, buildValueExamples } from "./value/train.js";
+export type {
+  ValueTrainOptions,
+  ValueTrainResult,
+  ValueTrainHistoryEntry,
+} from "./value/train.js";
 
 // Search head
 export { Searcher, search } from "./search/searchEngine.js";
-export type { SearchOptions, SearchResult } from "./search/searchEngine.js";
+export type { SearchOptions, SearchResult, ValueFn } from "./search/searchEngine.js";
 
 // Features
 export { see } from "./features/see.js";

@@ -4,6 +4,13 @@ import { MATE_SCORE, MATE_THRESHOLD, PIECE_VALUE } from "../constants.js";
 import { evaluate } from "../value/valueEngine.js";
 import { see } from "../features/see.js";
 
+/**
+ * A leaf evaluation function (side-to-move POV, negamax convention). Injected so
+ * trained value weights can drive the search; defaults to the handcrafted
+ * {@link evaluate}.
+ */
+export type ValueFn = (chess: Chess) => number;
+
 const INF = MATE_SCORE * 2;
 const MAX_QUIESCENCE_PLY = 64;
 
@@ -53,6 +60,12 @@ export class Searcher {
   private deadline = Number.POSITIVE_INFINITY;
   private aborted = false;
 
+  /**
+   * @param evalFn leaf evaluator (side-to-move POV). Defaults to the handcrafted
+   * {@link evaluate}; pass a closure over trained value weights to retune search.
+   */
+  constructor(private readonly evalFn: ValueFn = evaluate) {}
+
   search(fen: string, options: SearchOptions = {}): SearchResult {
     const maxDepth = Math.max(1, options.depth ?? 4);
     this.tt.clear();
@@ -64,7 +77,7 @@ export class Searcher {
     const chess = new Chess(fen);
     let result: SearchResult = {
       bestMove: null,
-      scoreCp: evaluate(chess),
+      scoreCp: this.evalFn(chess),
       pv: [],
       depth: 0,
       nodes: 0,
@@ -107,7 +120,7 @@ export class Searcher {
   private negamax(chess: Chess, depth: number, alphaIn: number, beta: number, ply: number): number {
     if (this.timeUp()) {
       this.aborted = true;
-      return evaluate(chess);
+      return this.evalFn(chess);
     }
     this.nodes++;
 
@@ -155,7 +168,7 @@ export class Searcher {
   private quiesce(chess: Chess, alphaIn: number, beta: number, ply: number): number {
     if (this.timeUp()) {
       this.aborted = true;
-      return evaluate(chess);
+      return this.evalFn(chess);
     }
     this.nodes++;
 
@@ -163,7 +176,7 @@ export class Searcher {
     let alpha = alphaIn;
 
     if (!inCheck) {
-      const stand = evaluate(chess);
+      const stand = this.evalFn(chess);
       if (stand >= beta) return beta;
       if (stand > alpha) alpha = stand;
       if (ply >= MAX_QUIESCENCE_PLY) return stand;

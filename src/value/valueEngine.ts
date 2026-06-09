@@ -3,6 +3,7 @@ import type { Color } from "chess.js";
 import { MATE_SCORE, MAX_PHASE, PHASE_VALUE, PIECE_VALUE } from "../constants.js";
 import type { GamePhase } from "../types.js";
 import { pstValueEg, pstValueMg } from "./pst.js";
+import { DEFAULT_VALUE_WEIGHTS, type ValueWeights } from "./weights.js";
 
 /** Non-pawn material on the board (0..24), used to taper mg/eg and label phase. */
 export function phaseUnits(chess: Chess): number {
@@ -30,7 +31,19 @@ export function phaseLabel(chess: Chess): GamePhase {
  * mate/stalemate score. This is intentionally a transparent handcrafted value
  * function — the seed that a learned value model (Phase 4) would later replace.
  */
-export function evaluateWhite(chess: Chess): number {
+export function evaluateWhite(chess: Chess, weights: ValueWeights = DEFAULT_VALUE_WEIGHTS): number {
+  return Math.round(evaluateWhiteFloat(chess, weights));
+}
+
+/**
+ * Pre-round White-POV float — the value trainer regresses against this so that
+ * sub-centipawn weight gradients are not quantized away by Math.round. With
+ * DEFAULT_VALUE_WEIGHTS this reproduces the original constants exactly.
+ */
+export function evaluateWhiteFloat(
+  chess: Chess,
+  weights: ValueWeights = DEFAULT_VALUE_WEIGHTS,
+): number {
   if (chess.isCheckmate()) {
     // Side to move is mated => bad for them.
     return chess.turn() === "w" ? -MATE_SCORE : MATE_SCORE;
@@ -51,10 +64,12 @@ export function evaluateWhite(chess: Chess): number {
     for (const piece of row) {
       if (!piece) continue;
       const sign = piece.color === "w" ? 1 : -1;
-      const material = PIECE_VALUE[piece.type];
+      // King material is fixed (never captured); only the 5 piece types scale.
+      const matMul = piece.type === "k" ? 1 : weights.material[piece.type];
+      const material = matMul * PIECE_VALUE[piece.type];
       const mg = pstValueMg(piece.type, piece.color, piece.square);
       const eg = pstValueEg(piece.type, piece.color, piece.square);
-      const positional = mg * mgWeight + eg * egWeight;
+      const positional = weights.pstScale * (mg * mgWeight + eg * egWeight);
       score += sign * (material + positional);
       if (piece.type === "b") {
         if (piece.color === "w") whiteBishops++;
@@ -63,18 +78,18 @@ export function evaluateWhite(chess: Chess): number {
     }
   }
 
-  if (whiteBishops >= 2) score += 30;
-  if (blackBishops >= 2) score -= 30;
+  if (whiteBishops >= 2) score += weights.bishopPair;
+  if (blackBishops >= 2) score -= weights.bishopPair;
 
   // Tempo: a small bonus for having the move.
-  score += chess.turn() === "w" ? 10 : -10;
+  score += chess.turn() === "w" ? weights.tempo : -weights.tempo;
 
-  return Math.round(score);
+  return score;
 }
 
 /** Static evaluation from the **side-to-move's** perspective (negamax convention). */
-export function evaluate(chess: Chess): number {
-  const white = evaluateWhite(chess);
+export function evaluate(chess: Chess, weights: ValueWeights = DEFAULT_VALUE_WEIGHTS): number {
+  const white = evaluateWhite(chess, weights);
   return chess.turn() === "w" ? white : -white;
 }
 
