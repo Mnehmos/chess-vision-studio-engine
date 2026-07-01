@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "kind": "cutechess-release-config",
+  "name": "cvs-rust-classical-release",
+  "engine": {
+    "name": "CVS Rust Classical",
+    "command": "node",
+    "args": ["bin/run-rust-core.cjs", "uci"],
+    "protocol": "uci",
+    "options": {
+      "Hash": 64,
+      "Threads": 1,
+      "MultiPV": 1
+    }
+  },
+  "opponent": {
+    "name": "Stockfish Baseline",
+    "command": "stockfish",
+    "args": [],
+    "protocol": "uci",
+    "options": {
+      "Hash": 64,
+      "Threads": 1
+    }
+  },
+  "match": {
+    "timeControl": "40/60+0.6",
+    "games": 200,
+    "rounds": 100,
+    "repeatOpenings": true,
+    "concurrency": 1,
+    "openings": {
+      "file": "data/openings/release.epd",
+      "format": "epd",
+      "order": "random",
+      "plies": 8
+    },
+    "adjudication": {
+      "resign": "movecount=4 score=800",
+      "draw": "movenumber=40 movecount=8 score=20"
+    },
+    "artifacts": {
+      "pgn": "artifacts/cutechess/cvs-rust-classical-release.pgn",
+      "engineLog": "artifacts/cutechess/cvs-rust-classical-release.uci.log",
+      "results": "artifacts/cutechess/cvs-rust-classical-release.results.json"
+    }
+  }
+}
