@@ -222,6 +222,13 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for module-by-module detail.
 See [`docs/NON_NNUE_ENGINE_CHECKLIST.md`](docs/NON_NNUE_ENGINE_CHECKLIST.md) for
 the classical-engine hardening checklist.
 
+**Contributing:** [`docs/DEVELOPMENT_SOP.md`](docs/DEVELOPMENT_SOP.md) is the
+standard operating procedure for all changes (Propose/Validate/Commit, the
+1,000,000 NPS floor, SPRT for strength changes, Definition of Done), adapted from
+[The Vibe Coder's Bible](https://mnehmos.github.io/vibe-coders-bible/). Open Rust
+runtime work carries build-ready specs in
+[`docs/RUST_PARITY_SPECS.md`](docs/RUST_PARITY_SPECS.md).
+
 ```
 src/
   constants.ts            piece values, phase weights, mate scores

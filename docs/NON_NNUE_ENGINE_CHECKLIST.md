@@ -5,6 +5,11 @@ move generation, alpha-beta search, handcrafted evaluation, and measured tuning.
 This repository will not use NNUE, neural policy/value networks, or MCTS; that
 work belongs in the separate neural engine.
 
+**Process.** All work follows [`DEVELOPMENT_SOP.md`](DEVELOPMENT_SOP.md)
+(Propose/Validate/Commit, the 1,000,000 NPS floor, SPRT for strength changes,
+Definition of Done). Open work items carry build-ready specs in
+[`RUST_PARITY_SPECS.md`](RUST_PARITY_SPECS.md).
+
 ## References
 
 - Claude Shannon, "Programming a Computer for Playing Chess" (1950): minimax,
@@ -124,15 +129,25 @@ only through the TypeScript reference engine.
 
 ### Remaining Native Runtime Work
 
+Each item has a build-ready shape in
+[`RUST_PARITY_SPECS.md`](RUST_PARITY_SPECS.md); follow the
+[`DEVELOPMENT_SOP.md`](DEVELOPMENT_SOP.md) loop when landing one. Recommended
+order: **Spec 2 → 4 → 3 → 5 → 1**.
+
 - [ ] Full Rust ponder lifecycle and complete option semantics beyond the
   currently accepted UCI options.
+  ([Spec 1](RUST_PARITY_SPECS.md#spec-1-ponder-lifecycle-and-complete-option-semantics))
 - [ ] Rust SEE pruning with a real static-exchange evaluator, not just tactical
   ordering and quiescence filtering.
+  ([Spec 2](RUST_PARITY_SPECS.md#spec-2-see-pruning-with-a-real-static-exchange-evaluator))
 - [ ] Rust policy-ordering parity with the handcrafted policy feature set.
+  ([Spec 3](RUST_PARITY_SPECS.md#spec-3-policy-ordering-parity))
 - [ ] Rust incremental evaluation hooks and a release-speed path for using more
   of the rich eval terms at search leaves without falling below 1,000,000 NPS.
+  ([Spec 4](RUST_PARITY_SPECS.md#spec-4-incremental-evaluation-and-release-speed-rich-eval-leaf))
 - [ ] Rust motif detector parity where motifs are used by evaluation, policy,
   explanations, or benchmark buckets.
+  ([Spec 5](RUST_PARITY_SPECS.md#spec-5-motif-detector-parity-where-motifs-feed-a-consumer))
 
 ### Latest Rust Gate Run
 
