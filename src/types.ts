@@ -1,8 +1,12 @@
-import type { Color, PieceSymbol, Square } from "chess.js";
+import type { Color, PieceSymbol, Square } from "./chess.js";
 
 export type { Color, PieceSymbol, Square };
 
 export type GamePhase = "opening" | "middlegame" | "endgame";
+export type ScorePerspective = "white" | "side-to-move" | "reference";
+export type DatasetPurpose = "fit" | "tuning" | "validation" | "release-test";
+export type TerminalClass = "ongoing" | "checkmate" | "stalemate" | "draw";
+export type TablebaseClass = "candidate-7-piece" | "out-of-scope" | "unknown";
 
 /**
  * Position-level features. This mirrors the `features` block produced by the
@@ -104,8 +108,21 @@ export interface AnalysisResult {
   mate?: number;
   /** Principal variation as UCI strings. */
   pv: string[];
+  /** Root search alternatives when requested through multiPv. */
+  multiPv: {
+    move: EngineMove;
+    scoreCp: number;
+    mate?: number;
+    pv: string[];
+  }[];
   depth: number;
+  seldepth: number;
   nodes: number;
+  hashfull: number;
+  aborted: boolean;
+  abortReason?: "time" | "nodes" | "stop";
+  /** Initial root move order as UCI strings, when requested for diagnostics. */
+  rootMoveOrder?: string[];
   /** Static value-engine evaluation of the root, White's perspective (centipawns). */
   staticEval: number;
   /** Policy candidate ranking for the root position. */
@@ -113,8 +130,8 @@ export interface AnalysisResult {
 }
 
 /**
- * One labelled supervised-learning example: a position plus everything known
- * about it. This is the schema described in the CVS engine roadmap (Phase 2).
+ * One labelled tuning example: a position plus everything known about it. This
+ * is the schema used by the classical policy-weight fitter.
  */
 export interface TrainingPosition {
   fen: string;
@@ -128,7 +145,20 @@ export interface TrainingPosition {
     cp?: number;
     mate?: number;
     depth: number;
+    multipv?: number;
+    nodes?: number;
+    engine?: string;
+    engineVersion?: string;
+    hashMb?: number;
+    tablebase?: string;
+    scorePerspective?: ScorePerspective;
   }[];
+  /** Perspective used by centipawn scores in this row. Default is White. */
+  scorePerspective?: ScorePerspective;
+  /** Dataset split/purpose, used to keep fitting data away from release gates. */
+  suitePurpose?: DatasetPurpose;
+  /** Optional tablebase classification from the data producer. */
+  tablebaseClass?: TablebaseClass;
   evalBefore?: number;
   evalAfterPlayed?: number;
   evalAfterBest?: number;
@@ -141,7 +171,7 @@ export interface TrainingPosition {
 }
 
 /**
- * A flattened training row: one legal move from one position, with a label.
+ * A flattened tuning row: one legal move from one position, with a label.
  * This is the Phase 3 ranking dataset — the played/best move is label 1, the
  * rest are label 0 (or a soft target).
  */

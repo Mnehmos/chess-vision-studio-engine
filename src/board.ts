@@ -1,5 +1,5 @@
-import { Chess } from "chess.js";
-import type { Color, Square } from "chess.js";
+import { Chess } from "./chess.js";
+import type { Color, Square } from "./chess.js";
 
 /** File index 0..7 (a=0). */
 export function fileOf(sq: Square): number {

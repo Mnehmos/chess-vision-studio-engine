@@ -5,7 +5,7 @@ import { FEATURE_SCALE, type PolicyWeights } from "./weights.js";
 
 export interface TrainOptions {
   epochs?: number;
-  /** Learning rate for full-batch gradient descent. */
+  /** Step size for full-batch gradient descent. */
   learningRate?: number;
   /** L2 regularisation strength. */
   l2?: number;
@@ -22,7 +22,7 @@ export interface TrainHistoryEntry {
 export interface TrainResult {
   weights: PolicyWeights;
   history: TrainHistoryEntry[];
-  /** Number of positions actually usable for training. */
+  /** Number of positions actually usable for weight fitting. */
   examples: number;
 }
 
@@ -60,12 +60,12 @@ function buildExamples(positions: TrainingPosition[], target: "best" | "played")
 }
 
 /**
- * Train the policy weight vector with softmax (cross-entropy) ranking: for each
+ * Fit the policy weight vector with softmax (cross-entropy) ranking: for each
  * position the labelled move is the positive class and the other legal moves are
- * negatives. This is the concrete Phase 3 "candidate move ranker" — start from a
- * dataset of {@link TrainingPosition}s with a best/played move and learn weights
- * that put that move on top. The bias term is left untouched (softmax is
- * invariant to a constant logit shift, so it is unidentifiable from ranking).
+ * negatives. This is the concrete Phase 3 "candidate move ranker": start from a
+ * dataset of {@link TrainingPosition}s with a best/played move and tune weights
+ * that put that move on top. The bias term is left untouched because softmax is
+ * invariant to a constant logit shift, so it is unidentifiable from ranking.
  */
 export function trainPolicy(
   positions: TrainingPosition[],

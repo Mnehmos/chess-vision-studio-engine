@@ -1,4 +1,4 @@
-import type { PieceSymbol } from "chess.js";
+import type { PieceSymbol } from "./chess.js";
 
 /**
  * Centipawn material values used across the value engine, SEE, and move

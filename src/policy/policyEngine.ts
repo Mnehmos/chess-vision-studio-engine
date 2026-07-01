@@ -1,5 +1,5 @@
-import { Chess } from "chess.js";
-import type { Square } from "chess.js";
+import { Chess } from "../chess.js";
+import type { Square } from "../chess.js";
 import { computeMoveFeatures } from "../features/moveFeatures.js";
 import type { CandidateMove } from "../types.js";
 import { DEFAULT_POLICY_WEIGHTS, scoreFeatures, type PolicyWeights } from "./weights.js";

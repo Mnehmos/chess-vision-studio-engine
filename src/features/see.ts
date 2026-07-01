@@ -1,5 +1,5 @@
-import { Chess } from "chess.js";
-import type { PieceSymbol, Square } from "chess.js";
+import { Chess } from "../chess.js";
+import type { PieceSymbol, Square } from "../chess.js";
 import { PIECE_VALUE } from "../constants.js";
 import { opposite } from "../board.js";
 

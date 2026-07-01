@@ -1,10 +1,11 @@
-import { Chess } from "chess.js";
-import type { Color, Square } from "chess.js";
+import { Chess } from "../chess.js";
+import type { Color, Square } from "../chess.js";
 import { CENTER_SQUARES, PIECE_VALUE } from "../constants.js";
 import { kingSquare, kingZone, nullMoveFen, opposite } from "../board.js";
 import { phaseLabel } from "../value/valueEngine.js";
 import type { PositionFeatures } from "../types.js";
 import { see } from "./see.js";
+import { detectMotifs } from "./motifs.js";
 
 interface SideMobility {
   mobility: number;
@@ -109,10 +110,9 @@ export function extractPositionFeatures(fen: string): PositionFeatures {
   const whiteMobility = mobilityFor(chess, "w");
   const blackMobility = mobilityFor(chess, "b");
 
-  const motifs: string[] = [];
-  if (chess.inCheck()) motifs.push("check");
   const hangingWhite = hangingValue(chess, "w");
   const hangingBlack = hangingValue(chess, "b");
+  const motifs = detectMotifs(fen);
   if (hangingWhite > 0 || hangingBlack > 0) motifs.push("hanging-material");
 
   return {
@@ -130,6 +130,6 @@ export function extractPositionFeatures(fen: string): PositionFeatures {
     mobilityBlack: blackMobility.mobility,
     safeMovesWhite: whiteMobility.safeMoves,
     safeMovesBlack: blackMobility.safeMoves,
-    motifs,
+    motifs: [...new Set(motifs)].sort(),
   };
 }

@@ -13,7 +13,8 @@
     }
   },
   "bin": {
-    "cvs-engine": "dist/bin/cvs-engine.js"
+    "cvs-engine": "dist/bin/cvs-engine.js",
+    "cvs-uci": "dist/bin/cvs-uci.js"
   },
   "files": [
     "dist",
@@ -24,11 +25,23 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "rust:build": "cargo build --release --manifest-path rust/cvs-core/Cargo.toml",
+    "rust:check": "cargo check --manifest-path rust/cvs-core/Cargo.toml",
+    "rust:test": "cargo test --manifest-path rust/cvs-core/Cargo.toml",
+    "rust:core": "node bin/run-rust-core.cjs",
+    "rust:uci": "node bin/run-rust-core.cjs uci",
     "engine": "tsx bin/cvs-engine.ts",
-    "bench": "tsx bin/cvs-engine.ts bench"
-  },
-  "dependencies": {
-    "chess.js": "^1.4.0"
+    "engine:dist": "node dist/bin/cvs-engine.js",
+    "uci": "tsx bin/cvs-uci.ts",
+    "uci:dist": "node dist/bin/cvs-uci.js",
+    "bench": "tsx bin/cvs-engine.ts bench",
+    "bench:perft": "tsx bin/cvs-engine.ts bench perft",
+    "bench:speed": "tsx bin/cvs-engine.ts bench speed",
+    "bench:speed:rust": "tsx bin/cvs-engine.ts bench speed --core rust",
+    "bench:speed:dist": "node dist/bin/cvs-engine.js bench speed",
+    "bench:speed:rust:dist": "node dist/bin/cvs-engine.js bench speed --core rust",
+    "bench:manifest": "tsx bin/cvs-engine.ts bench manifest",
+    "bench:reference": "tsx bin/cvs-engine.ts bench reference"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

@@ -1,4 +1,4 @@
-import type { Color, PieceSymbol, Square } from "chess.js";
+import type { Color, PieceSymbol, Square } from "../chess.js";
 import { fileOf, rankOf } from "../board.js";
 
 /**

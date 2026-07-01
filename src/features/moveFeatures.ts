@@ -1,5 +1,5 @@
-import { Chess } from "chess.js";
-import type { Move, Square } from "chess.js";
+import { Chess } from "../chess.js";
+import type { Move, Square } from "../chess.js";
 import { EXTENDED_CENTER, PIECE_VALUE } from "../constants.js";
 import { kingSquare, kingZone, opposite } from "../board.js";
 import { pstValueMg } from "../value/pst.js";

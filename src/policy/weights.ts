@@ -10,7 +10,7 @@ export interface PolicyWeights {
  * Fixed scaling applied to each feature before it meets a weight, so that
  * centipawn-scale features (SEE, capture value, PST delta) and 0/1 indicators
  * all land in roughly the same O(1) range. The same scaling is used for scoring
- * and for training, so a trained weight vector is directly comparable to the
+ * and for tuning, so a tuned weight vector is directly comparable to the
  * hand-tuned default below.
  */
 export const FEATURE_SCALE: Record<keyof MoveFeatures, number> = {
@@ -33,8 +33,8 @@ export const FEATURE_SCALE: Record<keyof MoveFeatures, number> = {
 /**
  * CVS-Policy-0: the hand-tuned baseline weight vector. It encodes ordinary
  * chess priors — reward safe captures and checks, punish moving into danger,
- * value development and central activity — and is the starting point a learned
- * ranker (see {@link import("./train.js").trainPolicy}) refines from data.
+ * value development and central activity — and is the starting point for the
+ * tunable linear ranker (see {@link import("./train.js").trainPolicy}).
  */
 export const DEFAULT_POLICY_WEIGHTS: PolicyWeights = {
   bias: 0,
